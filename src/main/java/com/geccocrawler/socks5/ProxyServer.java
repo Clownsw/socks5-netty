@@ -31,7 +31,6 @@ import lombok.extern.slf4j.Slf4j;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
-import java.util.Properties;
 
 /**
  * @author smilex
@@ -197,18 +196,23 @@ public class ProxyServer {
     }
 
     public static void main(String[] args) throws Exception {
+        final String propertyPort = System.getProperty("port");
+        final String propertyAuth = System.getProperty("auth");
         int port = 11080;
         boolean auth = false;
-        Properties properties = new Properties();
+
         try {
-            properties.load(ProxyServer.class.getResourceAsStream("/config.properties"));
-            port = Integer.parseInt(properties.getProperty("port"));
-            auth = Boolean.parseBoolean(properties.getProperty("auth"));
-        } catch (Exception e) {
-            if (log.isWarnEnabled()) {
-                log.warn("load config.properties error, default port 11080, auth false!");
-            }
+            port = Integer.parseInt(propertyPort);
+        } catch (Exception ignore) {
+            // ignore
         }
+
+        try {
+            auth = Boolean.parseBoolean(propertyAuth);
+        } catch (Exception ignore) {
+            // ignore
+        }
+
         MICROMETER_THREAD.start();
         ProxyServer.create(port)
                 .logging(true)

@@ -1,5 +1,7 @@
 package com.geccocrawler.socks5.auth;
 
+import io.micrometer.common.util.StringUtils;
+
 import java.io.IOException;
 import java.util.Properties;
 
@@ -9,25 +11,29 @@ import java.util.Properties;
  */
 public class PropertiesPasswordAuth implements PasswordAuth {
 
-    private static Properties properties;
+    private static final Properties PROPERTIES;
 
     static {
-        properties = new Properties();
+        PROPERTIES = new Properties();
         try {
-            properties.load(PropertiesPasswordAuth.class.getResourceAsStream("/password.properties"));
+            PROPERTIES.load(PropertiesPasswordAuth.class.getResourceAsStream("/password.properties"));
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
     public boolean auth(String user, String password) {
-        String configPasword = properties.getProperty(user);
-        if (configPasword != null) {
-            if (password.equals(configPasword)) {
-                return true;
-            }
+        final String configPassword = PROPERTIES.getProperty(user);
+
+        if (StringUtils.isEmpty(configPassword)) {
+            return true;
         }
-        return false;
+
+        if (StringUtils.isEmpty(password)) {
+            return false;
+        }
+
+        return password.equals(configPassword);
     }
 
 }
