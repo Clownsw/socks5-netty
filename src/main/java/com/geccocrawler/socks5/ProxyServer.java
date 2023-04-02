@@ -10,6 +10,8 @@ import com.geccocrawler.socks5.handler.ss5.Socks5InitialRequestHandler;
 import com.geccocrawler.socks5.handler.ss5.Socks5PasswordAuthRequestHandler;
 import com.geccocrawler.socks5.log.ProxyFlowLog;
 import com.geccocrawler.socks5.log.ProxyFlowLog4j;
+import com.sun.net.httpserver.HttpServer;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelInitializer;
@@ -26,15 +28,20 @@ import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.timeout.IdleStateHandler;
 import lombok.extern.slf4j.Slf4j;
 
+import java.io.OutputStream;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.util.Properties;
 
 /**
  * @author smilex
  * @date 2023/4/2/9:38
  */
-@SuppressWarnings("unused")
+@SuppressWarnings({"unused", "AlibabaAvoidManuallyCreateThread"})
 @Slf4j
 public class ProxyServer {
+    private static final Thread MICROMETER_THREAD = new Thread(ProxyServer::startMicrometer, "micrometer_thread");
+    private static final SimpleMeterRegistry SIMPLE_METER_REGISTRY = new SimpleMeterRegistry();
 
     private final EventLoopGroup bossGroup = new NioEventLoopGroup();
 
@@ -170,6 +177,25 @@ public class ProxyServer {
         }
     }
 
+    private static void startMicrometer() {
+        try {
+            final HttpServer server = HttpServer.create(new InetSocketAddress(8080), 0);
+            server.createContext("/prometheus", handle -> {
+                final String response = PrometheusMonitor.scrape();
+                final byte[] responseBytes = response.getBytes(StandardCharsets.UTF_8);
+
+                handle.sendResponseHeaders(200, responseBytes.length);
+                try (OutputStream os = handle.getResponseBody()) {
+                    os.write(responseBytes);
+                }
+            });
+            server.start();
+        } catch (Exception e) {
+            log.error("", e);
+            System.exit(0);
+        }
+    }
+
     public static void main(String[] args) throws Exception {
         int port = 11080;
         boolean auth = false;
@@ -183,6 +209,7 @@ public class ProxyServer {
                 log.warn("load config.properties error, default port 11080, auth false!");
             }
         }
+        MICROMETER_THREAD.start();
         ProxyServer.create(port)
                 .logging(true)
                 .auth(auth)
